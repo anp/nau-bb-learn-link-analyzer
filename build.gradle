@@ -1,0 +1,45 @@
+// Apply the java plugin to add support for Java
+plugins {
+    id 'java'
+    id 'application'
+    id "us.kirchmeier.capsule" version "1.0-rc1"
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+version = '1.0'
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+//fill this out and uncomment
+mainClassName = 'edu.nau.elc.restructurelinks.GetLinkWindow'
+
+task capsule(type: FatCapsule) {
+    applicationClass mainClassName
+
+    capsuleManifest {
+        minJavaVersion = '1.8.0'
+    }
+}
+
+def artifactName = 'nau-bb-learn-link-analyzer-' + version + '-capsule.jar'
+def execJarPath = libsDir.getCanonicalPath() + File.separator + artifactName
+
+task runApp(type: Exec, dependsOn: capsule) {
+    //MAKE SURE CONFIG PATH IS CORRECT
+    commandLine('java', '-jar', execJarPath)
+}
+
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile(
+            'net.lingala.zip4j:zip4j:1.3.2',
+            'org.jsoup:jsoup:1.8.1',
+            'commons-io:commons-io:2.4',
+            'org.apache.poi:poi-ooxml:3.10.1'
+    )
+}
