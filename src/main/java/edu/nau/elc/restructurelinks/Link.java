@@ -5,7 +5,7 @@ import org.xml.sax.InputSource;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.*;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class Link {
@@ -97,15 +97,15 @@ public class Link {
     }
 
     private void findXID() throws Exception {
-        ArrayList<File> candidates = new ArrayList<File>();
-        String[] splitted = address.split("/");
+		List<File> candidates;
+		String[] splitted = address.split("/");
         String filename = splitted[splitted.length - 1];
         String xmlFilename = filename + ".xml";
 
-        candidates.addAll(parent.getInstance()
-                .getXMLFiles().stream()
+		candidates = parent.getInstance()
+				.getXMLFiles().stream()
                 .filter(x -> x.getName().equals(xmlFilename))
-                .collect(Collectors.toList()));
+				.collect(Collectors.toList());
 
         String prefix = "https://bblearn.nau.edu/bbcswebdav/xid-";
         if (candidates.size() == 0) {

@@ -16,223 +16,243 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class CourseItem implements Comparable<CourseItem> {
-    private final ArrayList<Link> discardedURLs = new ArrayList<>();
-    private final String extension;
-    private final ArrayList<Link> foundLinks = new ArrayList<>();
-    private final ArrayList<Link> xidLinks = new ArrayList<>();
-    private final GetLinks parent;
-    private String collectionPath = "";
-    private String contentPath = "";
-    private File datFile;
-    private String name;
+	private final ArrayList<Link> discardedURLs = new ArrayList<>();
+	private final String extension;
+	private final ArrayList<Link> foundLinks = new ArrayList<>();
+	private final ArrayList<Link> xidLinks = new ArrayList<>();
+	private final GetLinks parent;
+	private String collectionPath = "";
+	private String contentPath = "";
+	private File datFile;
+	private String name;
 
-    public CourseItem(File in, GetLinks parent) throws Exception {
-        this.parent = parent;
-        extension = FilenameUtils.getExtension(in.getName());
+	public CourseItem(File in, GetLinks parent) throws Exception {
+		this.parent = parent;
+		extension = FilenameUtils.getExtension(in.getName());
 
-        if (extension.equals("dat")) {
-            datFile = in;
-            foundLinks.addAll(getXMLHardLinks(in));
-        } else if (extension.equals("htm") || extension.equals("html")) {
-            setDatFile(in);
-            foundLinks.addAll(getHTMLFileLinks(in));
-            collectionPath = in.getAbsolutePath().replace(
-                    parent.getCCDir().getAbsolutePath(), "");
-        }
+		if (extension.equals("dat")) {
+			datFile = in;
+			foundLinks.addAll(getXMLHardLinks(in));
+		} else if (extension.equals("htm") || extension.equals("html")) {
+			setDatFile(in);
+			foundLinks.addAll(getHTMLFileLinks(in));
+			collectionPath = in.getAbsolutePath().replace(
+					parent.getCCDir().getAbsolutePath(), "");
+		}
 
-        setContentPath();
-    }
+		setContentPath();
+	}
 
-    public int compareTo(CourseItem other) {
-        return other.foundLinks.size() - foundLinks.size();
-    }
+	public int compareTo(CourseItem other) {
+		return other.foundLinks.size() - foundLinks.size();
+	}
 
-    public String getCollectionPath() {
-        return collectionPath;
-    }
+	public String getCollectionPath() {
+		return collectionPath;
+	}
 
-    public String getContentPath() {
-        return contentPath;
-    }
+	public String getContentPath() {
+		return contentPath;
+	}
 
-    public File getDatFile() {
-        return datFile;
-    }
+	public File getDatFile() {
+		return datFile;
+	}
 
-    private void setDatFile(File in) throws Exception {
-        for (File f : parent.getDatFiles()) {
-            DatHandler handler = new DatHandler();
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            InputStream inputStream = new FileInputStream(f);
-            Reader reader = new InputStreamReader(inputStream, "UTF-8");
+	private void setDatFile(File in) throws Exception {
+		for (File f : parent.getDatFiles()) {
+			DatHandler handler = new DatHandler();
+			SAXParserFactory factory = SAXParserFactory.newInstance();
+			SAXParser saxParser = factory.newSAXParser();
+			InputStream inputStream = new FileInputStream(f);
+			Reader reader = new InputStreamReader(inputStream, "UTF-8");
 
-            InputSource is = new InputSource(reader);
-            is.setEncoding("UTF-8");
+			InputSource is = new InputSource(reader);
+			is.setEncoding("UTF-8");
 
-            saxParser.parse(is, handler);
+			saxParser.parse(is, handler);
 
-            if (in.getName().equals(handler.getLinkName())) {
-                datFile = f;
-            }
-        }
-    }
+			if (in.getName().equals(handler.getLinkName())) {
+				datFile = f;
+			}
+		}
+	}
 
-    public ArrayList<Link> getDiscardedURLs() {
-        return discardedURLs;
-    }
+	public ArrayList<Link> getDiscardedURLs() {
+		return discardedURLs;
+	}
 
-    public ArrayList<Link> getFoundLinks() {
-        return foundLinks;
-    }
+	public ArrayList<Link> getFoundLinks() {
+		return foundLinks;
+	}
 
-    public ArrayList<Link> getXIDLinks() {
-        return xidLinks;
-    }
+	public ArrayList<Link> getXIDLinks() {
+		return xidLinks;
+	}
 
-    private ArrayList<Link> getHardLinks(String htmlContent) throws Exception {
-        Document doc = Jsoup.parse(htmlContent);
-        TreeMap<String, String> hardlinks = new TreeMap<>();
+	private ArrayList<Link> getHardLinks(String htmlContent) throws Exception {
+		Document doc = Jsoup.parse(htmlContent);
+		TreeMap<String, String> hardlinks = new TreeMap<>();
 
-        for (Element e : doc.getElementsByTag("a")) {
-            hardlinks.put("text: " + e.text(), e.attr("href"));
-        }
+		for (Element e : doc.getElementsByTag("a")) {
+			hardlinks.put("text: " + e.text(), e.attr("href"));
+		}
 
-        for (Element e : doc.getElementsByTag("img")) {
-            hardlinks.put("alt: " + e.attr("alt"), e.attr("src"));
-        }
+		for (Element e : doc.getElementsByTag("img")) {
+			hardlinks.put("alt: " + e.attr("alt"), e.attr("src"));
+		}
 
-        ArrayList<Link> hardlinksNoDupes = new ArrayList<>();
-        for (Map.Entry<String, String> link : hardlinks.entrySet()) {
-            String url = link.getValue().trim();
-            if (url.length() == 0) {
-                continue;
-            }
-            String urlText = link.getKey();
-            url = url.replaceAll("@X@.*?@X@", "https://bblearn.nau.edu/");
+		ArrayList<Link> hardlinksNoDupes = new ArrayList<>();
+		for (Map.Entry<String, String> link : hardlinks.entrySet()) {
+			String url = link.getValue().trim();
+			if (url.length() == 0) {
+				continue;
+			}
+			String urlText = link.getKey();
+			url = url.replaceAll("@X@.*?@X@", "https://bblearn.nau.edu/");
 
-            if (url.contains("xid") && url.contains("bbcswebdav")) {
-                this.xidLinks.add(new Link(url, urlText, this, true));
-            } else if (url.startsWith("http://") && !url.contains("bblearn")) {
-                this.discardedURLs.add(new Link(url, urlText, this, true));
-            } else if (!url.startsWith("https://") && !url.startsWith("http://")
-                    && !url.startsWith("javascript:")
-                    && !url.startsWith("mailto:") && !url.startsWith("#")) {
-                hardlinksNoDupes.add(new Link(url, urlText, this, false));
-            } else if (url.contains("bbcswebdav")
-                    && !url.contains("/xid-") && !url.contains("vtbe-tinymce")) {
-                hardlinksNoDupes.add(new Link(url, urlText, this, false));
-            } else if (url.contains("courses") || url.contains("webapp")) {
-                hardlinksNoDupes.add(new Link(url, urlText, this, false));
-            } else {
-                this.discardedURLs.add(new Link(url, urlText, this, true));
-            }
-        }
-        return hardlinksNoDupes;
-    }
+			if (url.startsWith("%20")) url = url.replaceFirst("%20", "");
 
-    private ArrayList<Link> getHTMLFileLinks(File html) throws Exception {
-        name = html.getName();
-        int xidIndex = name.lastIndexOf("__xid");
-        if (xidIndex > -1) {
-            name = name.substring(0, xidIndex);
-        }
+			if (url.contains("xid") && url.contains("bbcswebdav")) {
+				this.xidLinks.add(new Link(url, urlText, this, true));
 
-        BufferedReader rdr = new BufferedReader(new FileReader(html));
-        String text = "";
-        String line = rdr.readLine();
 
-        while (line != null) {
-            text += line;
-            line = rdr.readLine();
-        }
+			} else if ((url.startsWith("http://") || url.startsWith("https://") || url.startsWith("www"))
+					&& !url.contains("bblearn")) {
+				this.discardedURLs.add(new Link(url, urlText, this, true));
 
-        rdr.close();
-        return getHardLinks(text);
-    }
+			} else if (url.startsWith("/images/ci/")) {
+				this.discardedURLs.add(new Link(url, urlText, this, true));
 
-    public GetLinks getInstance() {
-        return parent;
-    }
+			} else if (url.contains("iris.nau.edu/owa/redir.aspx?")) {
+				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
-    public String getName() {
-        return name;
-    }
+			} else if (
+					(url.contains("courses") || url.contains("webapp") || url.contains("bbcswebdav"))
+							&& !url.contains("execute/viewDocumentation?")
+							&& !url.contains("wvms-bb-BBLEARN")
+							&& !url.contains("bb-collaborate-BBLEARN")
+							&& !url.contains("/xid-")
+							&& !url.contains("webapps/vtbe-tinymce/tiny_mce")
+							&& !url.contains("webapps/login")) {
+				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
-    private String getNodeTitle(org.w3c.dom.Element item) {
-        return item.getElementsByTagName("title").item(0).getTextContent();
-    }
 
-    private String getPathToNode(org.w3c.dom.Element e) {
-        StringBuilder build = new StringBuilder();
+			} else if (!url.startsWith("https://") && !url.startsWith("http://")
+					&& !url.startsWith("javascript:")
+					&& !url.startsWith("mailto:") && !url.startsWith("#")) {
+				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
-        org.w3c.dom.Element parent = (org.w3c.dom.Element) e.getParentNode();
-        while (parent.getTagName().equals("item")) {
-            String nodeTitle = getNodeTitle(parent);
-            if (!nodeTitle.equals("--TOP--")) {
-                build.insert(0, nodeTitle);
-                build.insert(0, '\\');
-            }
-            parent = (org.w3c.dom.Element) parent.getParentNode();
-        }
 
-        build.append('\\');
+			} else {
+				this.discardedURLs.add(new Link(url, urlText, this, true));
+			}
+		}
+		return hardlinksNoDupes;
+	}
 
-        return build.toString();
-    }
+	private ArrayList<Link> getHTMLFileLinks(File html) throws Exception {
+		name = html.getName();
+		int xidIndex = name.lastIndexOf("__xid");
+		if (xidIndex > -1) {
+			name = name.substring(0, xidIndex);
+		}
 
-    private ArrayList<Link> getXMLHardLinks(File dat) throws Exception {
-        HardlinkHandler handler = new HardlinkHandler();
-        SAXParserFactory factory = SAXParserFactory.newInstance();
-        SAXParser saxParser = factory.newSAXParser();
-        InputStream inputStream = new FileInputStream(dat);
-        Reader reader = new InputStreamReader(inputStream, "UTF-8");
+		BufferedReader rdr = new BufferedReader(new FileReader(html));
+		String text = "";
+		String line = rdr.readLine();
 
-        InputSource is = new InputSource(reader);
-        is.setEncoding("UTF-8");
+		while (line != null) {
+			text += line;
+			line = rdr.readLine();
+		}
 
-        saxParser.parse(is, handler);
+		rdr.close();
+		return getHardLinks(text);
+	}
 
-        name = handler.getTitle();
-        contentPath = handler.getType();
-        if (contentPath.equalsIgnoreCase("Tests, Surveys & Pools")) {
-            name = handler.getAssessType() + ": " + name;
-        }
-        return getHardLinks(handler.getText());
-    }
+	public GetLinks getInstance() {
+		return parent;
+	}
 
-    private void setContentPath() {
-        if (!contentPath.equals("")) {
-            return;
-        }
-        if (datFile == null) {
-            contentPath = "NOT DEPLOYED???";
-            return;
-        }
-        String datString = datFile.getName();
-        datString = datString.substring(0, datString.lastIndexOf('.'));
+	public String getName() {
+		return name;
+	}
 
-        NodeList nl = parent.getDOM();
-        org.w3c.dom.Element thisNode;
+	private String getNodeTitle(org.w3c.dom.Element item) {
+		return item.getElementsByTagName("title").item(0).getTextContent();
+	}
 
-        for (int i = 0; i < nl.getLength(); i++) {
-            Node curr = nl.item(i);
-            if (curr instanceof org.w3c.dom.Element) {
-                org.w3c.dom.Element e = (org.w3c.dom.Element) curr;
-                String datRef = e.getAttribute("identifierref");
-                if (datRef.equalsIgnoreCase(datString)) {
-                    thisNode = e;
-                    contentPath = getPathToNode(thisNode);
-                    if (extension.equals("htm") || extension.equals("html")) {
-                        name = getNodeTitle(thisNode);
-                    }
-                    break;
-                }
-            }
-        }
+	private String getPathToNode(org.w3c.dom.Element e) {
+		StringBuilder build = new StringBuilder();
 
-        if (contentPath == null) {
-            contentPath = "";
-        }
-    }
+		org.w3c.dom.Element parent = (org.w3c.dom.Element) e.getParentNode();
+		while (parent.getTagName().equals("item")) {
+			String nodeTitle = getNodeTitle(parent);
+			if (!nodeTitle.equals("--TOP--")) {
+				build.insert(0, nodeTitle);
+				build.insert(0, '\\');
+			}
+			parent = (org.w3c.dom.Element) parent.getParentNode();
+		}
+
+		build.append('\\');
+
+		return build.toString();
+	}
+
+	private ArrayList<Link> getXMLHardLinks(File dat) throws Exception {
+		HardlinkHandler handler = new HardlinkHandler();
+		SAXParserFactory factory = SAXParserFactory.newInstance();
+		SAXParser saxParser = factory.newSAXParser();
+		InputStream inputStream = new FileInputStream(dat);
+		Reader reader = new InputStreamReader(inputStream, "UTF-8");
+
+		InputSource is = new InputSource(reader);
+		is.setEncoding("UTF-8");
+
+		saxParser.parse(is, handler);
+
+		name = handler.getTitle();
+		contentPath = handler.getType();
+		if (contentPath.equalsIgnoreCase("Tests, Surveys & Pools")) {
+			name = handler.getAssessType() + ": " + name;
+		}
+		return getHardLinks(handler.getText());
+	}
+
+	private void setContentPath() {
+		if (!contentPath.equals("")) {
+			return;
+		}
+		if (datFile == null) {
+			contentPath = "NOT DEPLOYED???";
+			return;
+		}
+		String datString = datFile.getName();
+		datString = datString.substring(0, datString.lastIndexOf('.'));
+
+		NodeList nl = parent.getDOM();
+		org.w3c.dom.Element thisNode;
+
+		for (int i = 0; i < nl.getLength(); i++) {
+			Node curr = nl.item(i);
+			if (curr instanceof org.w3c.dom.Element) {
+				org.w3c.dom.Element e = (org.w3c.dom.Element) curr;
+				String datRef = e.getAttribute("identifierref");
+				if (datRef.equalsIgnoreCase(datString)) {
+					thisNode = e;
+					contentPath = getPathToNode(thisNode);
+					if (extension.equals("htm") || extension.equals("html")) {
+						name = getNodeTitle(thisNode);
+					}
+					break;
+				}
+			}
+		}
+
+		if (contentPath == null) {
+			contentPath = "";
+		}
+	}
 }

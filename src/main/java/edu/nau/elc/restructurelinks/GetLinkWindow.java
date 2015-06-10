@@ -64,17 +64,27 @@ public class GetLinkWindow extends JFrame {
                     "ZIP Archives", "zip");
             chooser.setFileFilter(filter);
 
+
+			File downloadsDir = new File(System.getProperty("user.home") + File.separatorChar + "Downloads");
+			if (downloadsDir.exists() && downloadsDir.isDirectory()) {
+				chooser.setCurrentDirectory(downloadsDir);
+			}
+
+			chooser.setMultiSelectionEnabled(true);
+
             int returnVal = chooser.showOpenDialog(GetLinkWindow.this);
 
             textArea.append("************************************************\n");
             textArea.append("Waiting for file...\n");
 
             if (returnVal == JFileChooser.APPROVE_OPTION) {
-                File selected = chooser.getSelectedFile();
-                progressBar.setIndeterminate(true);
-                runAnalysis(selected);
-            } else if (returnVal == JFileChooser.CANCEL_OPTION) {
-                textArea.append("File selection cancelled.\n");
+				File[] selected = chooser.getSelectedFiles();
+				progressBar.setMaximum(selected.length);
+				for (File f : selected) {
+					runAnalysis(f);
+				}
+			} else if (returnVal == JFileChooser.CANCEL_OPTION) {
+				textArea.append("File selection cancelled.\n");
                 browse.setEnabled(true);
                 browse.setText("Browse...");
             }
@@ -98,21 +108,21 @@ public class GetLinkWindow extends JFrame {
 
     private void runAnalysis(File selected) {
         try {
-            textArea.append("File chosen:\n" + selected.getAbsolutePath()
-                    + "\n");
+			//textArea.append("File chosen:\n" + selected.getAbsolutePath() + "\n");
 
             GetLinks current = new GetLinks(selected, this);
             current.addPropertyChangeListener(e -> {
                 if ("progress".equals(e.getPropertyName())) {
                     progressBar.setIndeterminate(false);
-                    progressBar.setValue((Integer) e.getNewValue());
-                }
-                if (progressBar.getValue() >= progressBar.getMaximum()) {
+					progressBar.setValue(progressBar.getValue() + 1);
+				}
+				if (progressBar.getValue() >= progressBar.getMaximum()) {
                     progressBar.setValue(0);
                     browse.setEnabled(true);
                     browse.setText("Browse...");
-                }
-            });
+					textArea.append("All done!");
+				}
+			});
             current.execute();
 
         } catch (Exception e) {

@@ -1,9 +1,6 @@
 package edu.nau.elc.restructurelinks;
 
-import net.lingala.zip4j.core.ZipFile;
-import net.lingala.zip4j.exception.ZipException;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
@@ -11,7 +8,6 @@ import org.w3c.dom.NodeList;
 import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -24,6 +20,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class GetLinks extends SwingWorker<Void, String> {
 
@@ -32,10 +30,8 @@ public class GetLinks extends SwingWorker<Void, String> {
     private final File in;
     private final GetLinkWindow parent;
     private File ccBaseDir;
-    private int counted;
     private ArrayList<File> datFiles = new ArrayList<>();
     private NodeList manifestNodes;
-    private int maxCount;
     private ArrayList<File> xmlFiles = new ArrayList<>();
 
     GetLinks(File input, GetLinkWindow window) {
@@ -52,16 +48,6 @@ public class GetLinks extends SwingWorker<Void, String> {
                 "item");
     }
 
-    private int countRelevantFiles(File[] files) {
-        int numFiles = 0;
-
-        numFiles += getFilesOfExt(files, ".dat").size();
-        numFiles += getFilesOfExt(files, ".html").size();
-        numFiles += getFilesOfExt(files, ".htm").size();
-
-        return numFiles;
-    }
-
     @Override
     public Void doInBackground() throws Exception {
         String path = in.getAbsolutePath().replace(in.getName(), "");
@@ -70,11 +56,10 @@ public class GetLinks extends SwingWorker<Void, String> {
         //className = className.substring(0, className.lastIndexOf("_"));
 
         String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new java.util.Date());
-        File outFolder = Files.createTempDirectory("restructure_" + timeStamp)
-                .toFile();
+		File outFolder = Files.createTempDirectory("restructure_" + timeStamp).toFile();
 
-        publish("\nExtracting files...");
-        extractAllFiles(in.getAbsolutePath(), outFolder.getAbsolutePath());
+		//publish("\nExtracting files...");
+		extractAllFiles(in.getAbsolutePath(), outFolder.getAbsolutePath());
 
         ccBaseDir = new File(outFolder.getAbsolutePath() + File.separatorChar
                 + "csfiles" + File.separatorChar + "home_dir");
@@ -86,17 +71,15 @@ public class GetLinks extends SwingWorker<Void, String> {
         File manifest = new File(outFolder.getAbsolutePath()
                 + File.separatorChar + "imsmanifest.xml");
 
-        publish("Analyzing course structure & building model...");
-        buildDOM(manifest);
+		//publish("Analyzing course structure & building model...");
+		buildDOM(manifest);
 
-        maxCount = countRelevantFiles(outFolder.listFiles());
+		//publish("Searching content items for bad links...");
+		ArrayList<CourseItem> dats = getDats(outFolder.listFiles());
+		Collections.sort(dats);
 
-        publish("Searching content items for bad links...");
-        ArrayList<CourseItem> dats = getDats(outFolder.listFiles());
-        Collections.sort(dats);
-
-        publish("Searching for HTML files and their bad links...");
-        ArrayList<CourseItem> htmls = getHTMLFiles(outFolder.listFiles());
+		//publish("Searching for HTML files and their bad links...");
+		ArrayList<CourseItem> htmls = getHTMLFiles(outFolder.listFiles());
 
 
         Collections.sort(htmls);
@@ -115,12 +98,13 @@ public class GetLinks extends SwingWorker<Void, String> {
                 substring(0, in.getName().lastIndexOf('_'))
                 .replace("ExportFile", "triage") + ".xlsx";
 
-        publish("Writing report to:\n" + reportPath + "\n");
-        writeResults(reportPath, dats, htmls, notDeployed);
+		//publish("Writing report to:\n" + reportPath + "\n");
+		writeResults(reportPath, dats, htmls, notDeployed);
 
         deleteDirectory(outFolder);
 
-        Desktop.getDesktop().open(new File(reportPath));
+		//Desktop.getDesktop().open(new File(reportPath));
+		setProgress(1);
 
         return null;
     }
@@ -352,24 +336,49 @@ public class GetLinks extends SwingWorker<Void, String> {
             FileOutputStream out = new FileOutputStream(outPath);
             wb.write(out);
 
-            publish("Found & recorded " + totalWritten + " probable bad links.");
-            discardCurrentRow -= 1;
-            xidCurrentRow -= 1;
-            publish("Found & discarded " + discardCurrentRow + " links");
-            publish("Found & recorded " + xidCurrentRow + " x-id links");
-            publish("Complete!");
-            out.close();
-        } catch (IOException e) {
+			publish("Wrote " + totalWritten + " links to " + outPath);
+			out.close();
+		} catch (IOException e) {
             publish("ERROR: cannot write report file.");
             publish(e.getLocalizedMessage());
         }
     }
 
     private void extractAllFiles(String file, String outputDir)
-            throws ZipException {
-        ZipFile zipFile = new ZipFile(file);
-        zipFile.extractAll(outputDir);
-    }
+			throws IOException {
+		byte[] buffer = new byte[4096];
+
+		File outFolder = new File(outputDir);
+		if (!outFolder.exists()) outFolder.mkdir();
+
+		ZipInputStream zipInputStream = new ZipInputStream(new FileInputStream(file));
+
+		ZipEntry entry = zipInputStream.getNextEntry();
+
+		while (entry != null) {
+			String filename = entry.getName();
+			File extracted = new File(outFolder.getAbsolutePath() + File.separatorChar + filename);
+			extracted.getParentFile().mkdirs();
+
+			FileOutputStream outputStream = new FileOutputStream(extracted);
+
+			int length;
+			while ((length = zipInputStream.read(buffer)) > 0) {
+				outputStream.write(buffer, 0, length);
+			}
+
+			outputStream.flush();
+			outputStream.close();
+
+			zipInputStream.closeEntry();
+			entry = zipInputStream.getNextEntry();
+		}
+
+		//ZipFile zipFile = new ZipFile(file);
+		//zipFile.extractAll(outputDir);
+
+		zipInputStream.close();
+	}
 
     public File getCCDir() {
         return ccBaseDir;
@@ -382,7 +391,6 @@ public class GetLinks extends SwingWorker<Void, String> {
     private ArrayList<CourseItem> getDats(File[] files) throws Exception {
         ArrayList<CourseItem> datItems = new ArrayList<>();
         for (File f : getFilesOfExt(files, ".dat")) {
-            tickProgress();
             datItems.add(new CourseItem(f, this));
         }
         return datItems;
@@ -414,13 +422,13 @@ public class GetLinks extends SwingWorker<Void, String> {
     private ArrayList<CourseItem> getHTMLFiles(File[] files) throws Exception {
         ArrayList<CourseItem> htmlFiles = new ArrayList<>();
         for (File f : getFilesOfExt(files, ".htm")) {
-            tickProgress();
-            htmlFiles.add(new CourseItem(f, this));
-        }
+			//tickProgress();
+			htmlFiles.add(new CourseItem(f, this));
+		}
         for (File f : getFilesOfExt(files, ".html")) {
-            tickProgress();
-            htmlFiles.add(new CourseItem(f, this));
-        }
+			//tickProgress();
+			htmlFiles.add(new CourseItem(f, this));
+		}
         return htmlFiles;
     }
 
@@ -450,11 +458,6 @@ public class GetLinks extends SwingWorker<Void, String> {
                 }
             }
         }
-    }
-
-    private void tickProgress() {
-        counted++;
-        setProgress((counted * 100) / maxCount);
     }
 
     private void deleteDirectory(File dir) {
