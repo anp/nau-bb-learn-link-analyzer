@@ -138,24 +138,24 @@ public class GetLinks extends SwingWorker<Void, String> {
         headerStyle.setFillPattern(CellStyle.SOLID_FOREGROUND);
 
         Row contentHeaderRow = contentSheet.createRow(0);
-        contentHeaderRow.createCell(0).setCellValue(tops[0]);
-        contentHeaderRow.createCell(1).setCellValue(tops[2]);
-        contentHeaderRow.createCell(2).setCellValue(tops[3]);
-        contentHeaderRow.createCell(3).setCellValue(tops[4]);
-        contentHeaderRow.createCell(4).setCellValue(tops[5]);
-        for (Cell c : contentHeaderRow) {
+		contentHeaderRow.createCell(0).setCellValue(tops[2]);
+		contentHeaderRow.createCell(1).setCellValue(tops[4]);
+		contentHeaderRow.createCell(2).setCellValue(tops[5]);
+		contentHeaderRow.createCell(3).setCellValue(tops[3]);
+		contentHeaderRow.createCell(4).setCellValue(tops[0]);
+		for (Cell c : contentHeaderRow) {
             c.setCellStyle(headerStyle);
         }
 
         Row htmlHeaderRow = htmlSheet.createRow(0);
         htmlHeaderRow.setRowStyle(headerStyle);
-        htmlHeaderRow.createCell(0).setCellValue(tops[0]);
-        htmlHeaderRow.createCell(1).setCellValue(tops[1]);
-        htmlHeaderRow.createCell(2).setCellValue(tops[2]);
-        htmlHeaderRow.createCell(3).setCellValue(tops[3]);
-        htmlHeaderRow.createCell(4).setCellValue(tops[4]);
-        htmlHeaderRow.createCell(5).setCellValue(tops[5]);
-        for (Cell c : htmlHeaderRow) {
+		htmlHeaderRow.createCell(0).setCellValue(tops[2]);
+		htmlHeaderRow.createCell(1).setCellValue(tops[4]);
+		htmlHeaderRow.createCell(2).setCellValue(tops[5]);
+		htmlHeaderRow.createCell(3).setCellValue(tops[3]);
+		htmlHeaderRow.createCell(4).setCellValue(tops[0]);
+		htmlHeaderRow.createCell(5).setCellValue(tops[1]);
+		for (Cell c : htmlHeaderRow) {
             c.setCellStyle(headerStyle);
         }
 
@@ -186,9 +186,9 @@ public class GetLinks extends SwingWorker<Void, String> {
         discardHeaderRow.createCell(0).setCellValue(tops[0]);
         discardHeaderRow.createCell(1).setCellValue(tops[1]);
         discardHeaderRow.createCell(2).setCellValue(tops[2]);
-        discardHeaderRow.createCell(3).setCellValue(tops[3]);
-        discardHeaderRow.createCell(4).setCellValue(tops[4]);
-        for (Cell c : discardHeaderRow) {
+		discardHeaderRow.createCell(3).setCellValue(tops[4]);
+		discardHeaderRow.createCell(4).setCellValue(tops[3]);
+		for (Cell c : discardHeaderRow) {
             c.setCellStyle(headerStyle);
         }
 
@@ -199,12 +199,12 @@ public class GetLinks extends SwingWorker<Void, String> {
         for (CourseItem i : content) {
             for (Link l : i.getFoundLinks()) {
                 Row r = contentSheet.createRow(contentCurrentRow);
-                r.createCell(0).setCellValue(i.getContentPath());
-                r.createCell(1).setCellValue(i.getName());
-                r.createCell(2).setCellValue(l.getLinkText());
-                r.createCell(3).setCellValue(l.getAddress());
-                r.createCell(4).setCellValue(l.getXid());
-                contentCurrentRow++;
+				r.createCell(0).setCellValue(i.getName());
+				r.createCell(1).setCellValue(l.getAddress());
+				r.createCell(2).setCellValue(l.getXid());
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(i.getContentPath());
+				contentCurrentRow++;
 
             }
 
@@ -213,9 +213,9 @@ public class GetLinks extends SwingWorker<Void, String> {
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
                 r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
-                discardCurrentRow++;
+				r.createCell(3).setCellValue(l.getAddress());
+				r.createCell(4).setCellValue(l.getLinkText());
+				discardCurrentRow++;
             }
 
             for (Link l : i.getXIDLinks()) {
@@ -238,32 +238,34 @@ public class GetLinks extends SwingWorker<Void, String> {
 
             if (i.getFoundLinks().size() == 0) {
                 Row r = htmlSheet.createRow(htmlCurrentRow);
-                r.createCell(0).setCellValue(i.getContentPath());
-                r.createCell(1).setCellValue(i.getCollectionPath());
-                r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue("NO BAD LINKS FOUND, CONVERT TO BLANK PG?");
-                htmlCurrentRow++;
+				r.createCell(0).setCellValue(i.getName());
+				r.createCell(1).setCellValue("NO BAD LINKS FOUND, CONVERT TO BLANK PG?");
+				r.createCell(2);
+				r.createCell(3);
+				r.createCell(4).setCellValue(i.getContentPath());
+				r.createCell(5).setCellValue(i.getCollectionPath());
+				htmlCurrentRow++;
             }
 
             for (Link l : i.getFoundLinks()) {
                 Row r = htmlSheet.createRow(htmlCurrentRow);
-                r.createCell(0).setCellValue(i.getContentPath());
-                r.createCell(1).setCellValue(i.getCollectionPath());
-                r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
-                r.createCell(5).setCellValue(l.getXid());
-                htmlCurrentRow++;
+				r.createCell(0).setCellValue(i.getName());
+				r.createCell(1).setCellValue(l.getAddress());
+				r.createCell(2).setCellValue(l.getXid());
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(i.getContentPath());
+				r.createCell(5).setCellValue(i.getCollectionPath());
+				htmlCurrentRow++;
             }
 
             for (Link l : i.getDiscardedURLs()) {
                 Row r = discardSheet.createRow(discardCurrentRow);
-                r.createCell(0).setCellValue(i.getContentPath());
-                r.createCell(1).setCellValue(i.getCollectionPath());
-                r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
-                discardCurrentRow++;
+				r.createCell(0).setCellValue(i.getContentPath());
+				r.createCell(1).setCellValue(i.getCollectionPath());
+				r.createCell(2).setCellValue(i.getName());
+				r.createCell(3).setCellValue(l.getAddress());
+				r.createCell(4).setCellValue(l.getLinkText());
+				discardCurrentRow++;
             }
 
             for (Link l : i.getXIDLinks()) {

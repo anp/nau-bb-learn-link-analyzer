@@ -94,11 +94,11 @@ public class CourseItem implements Comparable<CourseItem> {
 		Document doc = Jsoup.parse(htmlContent);
 		TreeMap<String, String> hardlinks = new TreeMap<>();
 
-		for (Element e : doc.getElementsByTag("a")) {
+		for (Element e : doc.select("a")) {
 			hardlinks.put("text: " + e.text(), e.attr("href"));
 		}
 
-		for (Element e : doc.getElementsByTag("img")) {
+		for (Element e : doc.select("img")) {
 			hardlinks.put("alt: " + e.attr("alt"), e.attr("src"));
 		}
 
@@ -109,38 +109,39 @@ public class CourseItem implements Comparable<CourseItem> {
 				continue;
 			}
 			String urlText = link.getKey();
-			url = url.replaceAll("@X@.*?@X@", "https://bblearn.nau.edu/");
+			url = url.replace("@X@EmbeddedFile.requestUrlStub@X@", "https://bblearn.nau.edu/");
 
 			if (url.startsWith("%20")) url = url.replaceFirst("%20", "");
 
-			if (url.contains("xid") && url.contains("bbcswebdav")) {
-				this.xidLinks.add(new Link(url, urlText, this, true));
+			if (url.contains("iris.nau.edu/owa/redir.aspx")) {
+				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
+			} else if (url.contains("xid") && url.contains("bbcswebdav")) {
+				this.xidLinks.add(new Link(url, urlText, this, true));
 
 			} else if ((url.startsWith("http://") || url.startsWith("https://") || url.startsWith("www"))
 					&& !url.contains("bblearn")) {
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 
-			} else if (url.startsWith("/images/ci/")) {
+			} else if (url.contains("/images/ci/")) {
 				this.discardedURLs.add(new Link(url, urlText, this, true));
-
-			} else if (url.contains("iris.nau.edu/owa/redir.aspx?")) {
-				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
 			} else if (
 					(url.contains("courses") || url.contains("webapp") || url.contains("bbcswebdav"))
 							&& !url.contains("execute/viewDocumentation?")
 							&& !url.contains("wvms-bb-BBLEARN")
 							&& !url.contains("bb-collaborate-BBLEARN")
-							&& !url.contains("/xid-")
 							&& !url.contains("webapps/vtbe-tinymce/tiny_mce")
-							&& !url.contains("webapps/login")) {
+							&& !url.contains("webapps/login")
+							&& !url.contains("webapps/portal")) {
 				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
 
 			} else if (!url.startsWith("https://") && !url.startsWith("http://")
 					&& !url.startsWith("javascript:")
-					&& !url.startsWith("mailto:") && !url.startsWith("#")) {
+					&& !url.startsWith("mailto:") && !url.startsWith("#")
+					&& !url.contains("webapp")
+					&& !url.startsWith("data:image/")) {
 				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
 
