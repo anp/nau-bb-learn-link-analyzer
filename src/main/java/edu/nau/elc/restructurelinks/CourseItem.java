@@ -109,7 +109,7 @@ public class CourseItem implements Comparable<CourseItem> {
 				continue;
 			}
 			String urlText = link.getKey();
-			url = url.replace("@X@EmbeddedFile.requestUrlStub@X@", "https://bblearn.nau.edu/");
+			url = url.replace("@X@EmbeddedFile.requestUrlStub@X@", "https://bblearn.nau.edu/").toLowerCase();
 
 			if (url.startsWith("%20")) url = url.replaceFirst("%20", "");
 
