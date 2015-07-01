@@ -112,9 +112,15 @@ public class CourseItem implements Comparable<CourseItem> {
 			url = url.replace("@X@EmbeddedFile.requestUrlStub@X@", "https://bblearn.nau.edu/").toLowerCase();
 
 			if (url.startsWith("%20")) url = url.replaceFirst("%20", "");
+			url = url.replace("%0d", "");
 
 			if (url.contains("iris.nau.edu/owa/redir.aspx")) {
 				hardlinksNoDupes.add(new Link(url, urlText, this, false));
+
+			} else if ((url.contains("ppg/") && contentPath.equals("Tests, Surveys & Pools")) ||
+					url.equalsIgnoreCase("about:blank") ||
+					url.contains("@X@EmbeddedFile.location@X@")) {
+				this.discardedURLs.add(new Link(url, urlText, this, false));
 
 			} else if (url.contains("xid") && url.contains("bbcswebdav")) {
 				this.xidLinks.add(new Link(url, urlText, this, true));
@@ -127,13 +133,16 @@ public class CourseItem implements Comparable<CourseItem> {
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 
 			} else if (
-					(url.contains("courses") || url.contains("webapp") || url.contains("bbcswebdav"))
-							&& !url.contains("execute/viewDocumentation?")
-							&& !url.contains("wvms-bb-BBLEARN")
-							&& !url.contains("bb-collaborate-BBLEARN")
+					(url.contains("courses") || url.contains("webapp") || url.contains("bbcswebdav") || url.contains("webct") || url.contains("vista"))
+							&& !url.contains("/institution/")
+							&& !url.contains("execute/viewdocumentation?")
+							&& !url.contains("wvms-bb-bblearn")
+							&& !url.contains("bb-collaborate-bblearn")
 							&& !url.contains("webapps/vtbe-tinymce/tiny_mce")
 							&& !url.contains("webapps/login")
-							&& !url.contains("webapps/portal")) {
+							&& !url.contains("webapps/portal")
+							&& !url.contains("bbgs-nbc-content-integration-bblearn")
+							&& !url.contains("bb-selfpear-bblearn")) {
 				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
 
@@ -141,7 +150,12 @@ public class CourseItem implements Comparable<CourseItem> {
 					&& !url.startsWith("javascript:")
 					&& !url.startsWith("mailto:") && !url.startsWith("#")
 					&& !url.contains("webapp")
-					&& !url.startsWith("data:image/")) {
+					&& !url.startsWith("data:image/")
+					&& !url.contains(".com")
+					&& !url.contains(".net")
+					&& !url.contains(".edu")
+					&& !url.contains(".org")
+					&& !url.contains("//cdn.slidesharecdn.com/")) {
 				hardlinksNoDupes.add(new Link(url, urlText, this, false));
 
 

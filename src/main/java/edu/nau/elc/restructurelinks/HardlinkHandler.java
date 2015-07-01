@@ -47,7 +47,8 @@ public class HardlinkHandler extends DefaultHandler {
     }
 
     public String getText() {
-        return this.text;
+		if (isDiscussion || isAnnouncement) return "";
+		return this.text;
     }
 
     public String getTitle() {
