@@ -126,7 +126,7 @@ public class CourseItem implements Comparable<CourseItem> {
 				this.xidLinks.add(new Link(url, urlText, this, true));
 
 			} else if ((url.startsWith("http://") || url.startsWith("https://") || url.startsWith("www"))
-					&& !url.contains("bblearn")) {
+					&& !url.contains("bblearn") && !url.contains("vista")) {
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 
 			} else if (url.contains("/images/ci/")) {
