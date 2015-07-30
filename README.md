@@ -46,3 +46,21 @@ The format of the report is fairly tightly coupled to the implementation code, b
 #####GUI
 
 Hopefully the GUI shouldn't need to change drastically, but if it does it's all handled in `GetLinksWindow`, which creates instances of `GetLinks` objects, 1 for each course export.
+
+###Updating Documentation
+
+#####Don't forget to re-run javadoc when changing doc comments!
+
+#####Rendering the HTML README
+
+If you change the README.md, the HTML version will be out of sync. To resolve this, first install [grip](https://github.com/joeyespo/grip):
+
+```bash
+sudo pip install grip
+```
+
+Then, in the base repo folder, re-export the README:
+
+```bash
+grip --export
+```

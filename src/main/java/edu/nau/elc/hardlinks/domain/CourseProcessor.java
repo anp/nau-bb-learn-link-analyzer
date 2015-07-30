@@ -1,13 +1,16 @@
-package edu.nau.elc.restructurelinks;
+package edu.nau.elc.hardlinks.domain;
 
+import edu.nau.elc.hardlinks.GetLinkWindow;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -23,7 +26,11 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-public class GetLinks extends SwingWorker<Void, String> {
+/**
+ * One instance of GetLinks is constructed for each export file to process. It begins processing when doInBackground()
+ * is called.
+ */
+public class CourseProcessor extends SwingWorker<Void, String> {
 
     private static final String xidString = "__xid-[0-9]{6,8}_[0-9]";
     private static final Pattern xidPattern = Pattern.compile(xidString);
@@ -34,23 +41,44 @@ public class GetLinks extends SwingWorker<Void, String> {
     private NodeList manifestNodes;
     private ArrayList<File> xmlFiles = new ArrayList<>();
 
-    GetLinks(File input, GetLinkWindow window) {
-        in = input;
+	/**
+	 * Instantiates a new GetLinks object, ready for processing.
+	 *
+	 * @param input  ZIP file that's a course export.
+	 * @param window The parent window that we'll print status messages to.
+	 */
+	public CourseProcessor(File input, GetLinkWindow window) {
+		in = input;
         parent = window;
-    }
+	}
 
-    private void buildDOM(File manifest) throws Exception {
-        DocumentBuilderFactory builderFactory = DocumentBuilderFactory
+	/**
+	 * This takes a bb-manifest.xml and gives us a DOM of the course content structure.
+	 *
+	 * @param manifest bb-manifest.xml file we want to parse.
+	 * @throws IOException                  If the manifest file can't be read.
+	 * @throws SAXException                 If it's not valid XML.
+	 * @throws ParserConfigurationException Ask the JDK why this gets thrown.
+	 */
+	private void buildDOM(File manifest) throws IOException, SAXException, ParserConfigurationException {
+		DocumentBuilderFactory builderFactory = DocumentBuilderFactory
                 .newInstance();
         DocumentBuilder builder = builderFactory.newDocumentBuilder();
         Document document = builder.parse(new FileInputStream(manifest));
         manifestNodes = document.getDocumentElement().getElementsByTagName(
-                "item");
-    }
+				"item");
+	}
 
-    @Override
-    public Void doInBackground() throws Exception {
-        String path = in.getAbsolutePath().replace(in.getName(), "");
+	/**
+	 * Begins background processing of the ZIP export.
+	 * @return Nothing.
+	 * @throws IOException If a file in the ZIP can't be read.
+	 * @throws SAXException If we encounter invalid XML that SAX can't parse at all.
+	 * @throws ParserConfigurationException If for some bizarre reason we can't configure the parser.
+	 */
+	@Override
+	public Void doInBackground() throws IOException, SAXException, ParserConfigurationException {
+		String path = in.getAbsolutePath().replace(in.getName(), "");
 
         //String className = in.getName().replaceAll("ExportFile_", "");
         //className = className.substring(0, className.lastIndexOf("_"));
@@ -106,29 +134,45 @@ public class GetLinks extends SwingWorker<Void, String> {
 		//Desktop.getDesktop().open(new File(reportPath));
 		setProgress(1);
 
-        return null;
-    }
+		return null;
+	}
 
-    private void writeResults(String outPath, ArrayList<CourseItem> content,
-                              ArrayList<CourseItem> htmlFiles, ArrayList<CourseItem> undeployed) {
-        Workbook wb = new XSSFWorkbook();
+	/**
+	 * Writes our results to an Excel sheet. Is a bit of a beast because POI doesn't have the most concise
+	 * syntax. Fairly tightly coupled to the CourseItem and Link implementations, but can definitely be tweaked
+	 * if need be. All styling and formatting is handled in code, rather than configuration, since this is only
+	 * used a few dozen times a semester.
+	 *
+	 * @param outPath The path to write the report to (usually is the path of the export file as well).
+	 * @param content A list of all content items found in the course.
+	 * @param htmlFiles A list of all HTML files found in the content collection which are deployed in the course.
+	 * @param undeployed A list of all HTML files found in the content collection which are <b>not</b> deployed.
+	 */
+	private void writeResults(String outPath, ArrayList<CourseItem> content,
+							  ArrayList<CourseItem> htmlFiles, ArrayList<CourseItem> undeployed) {
 
-        Sheet contentSheet = wb.createSheet("Content Items");
+		// all work is done in memory before writing to a file
+		Workbook wb = new XSSFWorkbook();
+
+		// first we'll create the sheets
+		Sheet contentSheet = wb.createSheet("Content Items");
         Sheet htmlSheet = wb.createSheet("HTML Files");
         Sheet undeployedSheet = wb.createSheet("Undeployed HTML Files");
         Sheet xidSheet = wb.createSheet("x-id Links");
-        Sheet discardSheet = wb.createSheet("Discarded links");
+		Sheet discardSheet = wb.createSheet("Discarded links");
 
-        String[] tops = {
+		// we'll define shared headers, although this is clunky in retrospect
+		String[] tops = {
                 "Course Location",            //0
                 "Content Collection Path",    //1
                 "Item Name",                //2
                 "Link/Alt Text",            //3
                 "Link Address",                //4
-                "x-id"};                    //5
+				"x-id"};                    //5
 
-        Font headerFont = wb.createFont();
-        headerFont.setFontHeightInPoints((short) 10);
+		// let's set some default styling across the board
+		Font headerFont = wb.createFont();
+		headerFont.setFontHeightInPoints((short) 11);
         headerFont.setFontName("Arial");
         headerFont.setUnderline(Font.U_SINGLE);
 
@@ -189,18 +233,25 @@ public class GetLinks extends SwingWorker<Void, String> {
 		discardHeaderRow.createCell(3).setCellValue(tops[4]);
 		discardHeaderRow.createCell(4).setCellValue(tops[3]);
 		for (Cell c : discardHeaderRow) {
-            c.setCellStyle(headerStyle);
-        }
+			c.setCellStyle(headerStyle);
+		}
 
-        int contentCurrentRow = 1;
+		//that's just for the header rows...ugh
+		//i'm sure there's a better way to do this (how I long for pandas DataFrames in Java...)
+		//now we can start writing the actual results
+
+		// we need to track the current "cursor" index for all worksheets separately
+		// so we know where to write each result
+		int contentCurrentRow = 1;
         int discardCurrentRow = 1;
-        int xidCurrentRow = 1;
+		int xidCurrentRow = 1;
 
-        for (CourseItem i : content) {
-            for (Link l : i.getFoundLinks()) {
+		for (CourseItem i : content) {
+			// first we'll process the actual hardlinks
+			for (Link l : i.getHardLinks()) {
                 Row r = contentSheet.createRow(contentCurrentRow);
 				r.createCell(0).setCellValue(i.getName());
-				r.createCell(1).setCellValue(l.getAddress());
+				r.createCell(1).setCellValue(l.getUrl());
 				r.createCell(2).setCellValue(l.getXid());
 				r.createCell(3).setCellValue(l.getLinkText());
 				r.createCell(4).setCellValue(i.getContentPath());
@@ -208,36 +259,40 @@ public class GetLinks extends SwingWorker<Void, String> {
 
             }
 
-            for (Link l : i.getDiscardedURLs()) {
+			// then we'll process the discards
+			for (Link l : i.getDiscardedURLs()) {
                 Row r = discardSheet.createRow(discardCurrentRow);
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
-                r.createCell(2).setCellValue(i.getName());
-				r.createCell(3).setCellValue(l.getAddress());
+				r.createCell(2).setCellValue(i.getName());
+				r.createCell(3).setCellValue(l.getUrl());
 				r.createCell(4).setCellValue(l.getLinkText());
 				discardCurrentRow++;
             }
 
-            for (Link l : i.getXIDLinks()) {
+			// then we'll process the probably-legit xid links
+			for (Link l : i.getXIDLinks()) {
                 Row r = xidSheet.createRow(xidCurrentRow);
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
                 r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
-                xidCurrentRow++;
-            }
-        }
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(l.getUrl());
+				xidCurrentRow++;
+			}
+		}
+
+		// rinse and repeat for the deployed and undeployed HTML files
 
         int htmlCurrentRow = 1;
         for (CourseItem i : htmlFiles) {
             Matcher m = Pattern.compile("(DVD|VT)[0-9]{1,6}_").matcher(i.getName());
-            if (m.find()) {
-                continue;
+			if (m.find()) {
+				continue;
             }
 
-            if (i.getFoundLinks().size() == 0) {
-                Row r = htmlSheet.createRow(htmlCurrentRow);
+            if (i.getHardLinks().size() == 0) {
+				Row r = htmlSheet.createRow(htmlCurrentRow);
 				r.createCell(0).setCellValue(i.getName());
 				r.createCell(1).setCellValue("NO BAD LINKS FOUND, CONVERT TO BLANK PG?");
 				r.createCell(2);
@@ -247,10 +302,10 @@ public class GetLinks extends SwingWorker<Void, String> {
 				htmlCurrentRow++;
             }
 
-            for (Link l : i.getFoundLinks()) {
-                Row r = htmlSheet.createRow(htmlCurrentRow);
+            for (Link l : i.getHardLinks()) {
+				Row r = htmlSheet.createRow(htmlCurrentRow);
 				r.createCell(0).setCellValue(i.getName());
-				r.createCell(1).setCellValue(l.getAddress());
+				r.createCell(1).setCellValue(l.getUrl());
 				r.createCell(2).setCellValue(l.getXid());
 				r.createCell(3).setCellValue(l.getLinkText());
 				r.createCell(4).setCellValue(i.getContentPath());
@@ -263,7 +318,7 @@ public class GetLinks extends SwingWorker<Void, String> {
 				r.createCell(0).setCellValue(i.getContentPath());
 				r.createCell(1).setCellValue(i.getCollectionPath());
 				r.createCell(2).setCellValue(i.getName());
-				r.createCell(3).setCellValue(l.getAddress());
+				r.createCell(3).setCellValue(l.getUrl());
 				r.createCell(4).setCellValue(l.getLinkText());
 				discardCurrentRow++;
             }
@@ -273,8 +328,8 @@ public class GetLinks extends SwingWorker<Void, String> {
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
                 r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(l.getUrl());
                 xidCurrentRow++;
             }
         }
@@ -282,24 +337,24 @@ public class GetLinks extends SwingWorker<Void, String> {
         int undeployedCurrentRow = 1;
         for (CourseItem i : undeployed) {
             Matcher m = Pattern.compile("(DVD|VT)[0-9]{1,6}_").matcher(i.getName());
-            if (m.find()) {
-                continue;
+			if (m.find()) {
+				continue;
             }
 
-            if (i.getFoundLinks().size() == 0) {
-                Row r = undeployedSheet.createRow(undeployedCurrentRow);
+            if (i.getHardLinks().size() == 0) {
+				Row r = undeployedSheet.createRow(undeployedCurrentRow);
                 r.createCell(0).setCellValue(i.getCollectionPath());
                 r.createCell(1).setCellValue(i.getName());
                 r.createCell(2).setCellValue("NO BAD LINKS FOUND, CONSIDER DELETE");
-                undeployedCurrentRow++;
+				undeployedCurrentRow++;
             }
 
-            for (Link l : i.getFoundLinks()) {
-                Row r = undeployedSheet.createRow(undeployedCurrentRow);
+            for (Link l : i.getHardLinks()) {
+				Row r = undeployedSheet.createRow(undeployedCurrentRow);
                 r.createCell(0).setCellValue(i.getCollectionPath());
                 r.createCell(1).setCellValue(i.getName());
-                r.createCell(2).setCellValue(l.getLinkText());
-                r.createCell(3).setCellValue(l.getAddress());
+				r.createCell(2).setCellValue(l.getLinkText());
+				r.createCell(3).setCellValue(l.getUrl());
                 r.createCell(4).setCellValue(l.getXid());
                 htmlCurrentRow++;
             }
@@ -309,8 +364,8 @@ public class GetLinks extends SwingWorker<Void, String> {
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
                 r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(l.getUrl());
                 discardCurrentRow++;
             }
 
@@ -319,13 +374,14 @@ public class GetLinks extends SwingWorker<Void, String> {
                 r.createCell(0).setCellValue(i.getContentPath());
                 r.createCell(1).setCellValue(i.getCollectionPath());
                 r.createCell(2).setCellValue(i.getName());
-                r.createCell(3).setCellValue(l.getLinkText());
-                r.createCell(4).setCellValue(l.getAddress());
-                xidCurrentRow++;
-            }
+				r.createCell(3).setCellValue(l.getLinkText());
+				r.createCell(4).setCellValue(l.getUrl());
+				xidCurrentRow++;
+			}
         }
 
-        for (int i = 0; i < 5; i++) {
+		// now we'll autosize all of the columns so it reads OK
+		for (int i = 0; i < 5; i++) {
             contentSheet.autoSizeColumn(i);
             htmlSheet.autoSizeColumn(i);
             undeployedSheet.autoSizeColumn(i);
@@ -342,11 +398,17 @@ public class GetLinks extends SwingWorker<Void, String> {
 			out.close();
 		} catch (IOException e) {
             publish("ERROR: cannot write report file.");
-            publish(e.getLocalizedMessage());
-        }
-    }
+			publish(e.getLocalizedMessage());
+		}
+	}
 
-    private void extractAllFiles(String file, String outputDir)
+	/**
+	 * Extract's all ZIP files to a directory, preserving the internal structure of the archive.
+	 * @param file ZIP file to extract.
+	 * @param outputDir Directory to output to.
+	 * @throws IOException
+	 */
+	private void extractAllFiles(String file, String outputDir)
 			throws IOException {
 		byte[] buffer = new byte[4096];
 
@@ -376,33 +438,59 @@ public class GetLinks extends SwingWorker<Void, String> {
 			entry = zipInputStream.getNextEntry();
 		}
 
-		//ZipFile zipFile = new ZipFile(file);
-		//zipFile.extractAll(outputDir);
-
 		zipInputStream.close();
 	}
 
-    public File getCCDir() {
-        return ccBaseDir;
-    }
+	/**
+	 * Gets the content collection directory.
+	 *
+	 * @return the content collection directory
+	 */
+	public File getCCDir() {
+		return ccBaseDir;
+	}
 
-    public ArrayList<File> getDatFiles() {
-        return datFiles;
-    }
+	/**
+	 * Gets all XML files in the export
+	 *
+	 * @return the xml files
+	 */
+	public ArrayList<File> getDatFiles() {
+		return datFiles;
+	}
 
-    private ArrayList<CourseItem> getDats(File[] files) throws Exception {
-        ArrayList<CourseItem> datItems = new ArrayList<>();
+	/**
+	 * Finds all files in the course export that end in ".dat".
+	 *
+	 * @param files Array of files at the root of the export.
+	 * @return A flat list of XML files.
+	 * @throws IOException
+	 * @throws SAXException
+	 */
+	private ArrayList<CourseItem> getDats(File[] files) throws IOException, SAXException {
+		ArrayList<CourseItem> datItems = new ArrayList<>();
         for (File f : getFilesOfExt(files, ".dat")) {
-            datItems.add(new CourseItem(f, this));
-        }
-        return datItems;
-    }
+			datItems.add(new CourseItem(f, this));
+		}
+		return datItems;
+	}
 
-    public NodeList getDOM() {
-        return manifestNodes;
-    }
+	/**
+	 * Gets the DOM for the whole course navigation structure.
+	 *
+	 * @return the DOM
+	 */
+	public NodeList getDOM() {
+		return manifestNodes;
+	}
 
-    private ArrayList<File> getFilesOfExt(File[] files, String ext) {
+	/**
+	 * Generic function to get a flat list of all files of a given extension.
+	 * @param files Array of files at the root of the course export.
+	 * @param ext Extension we're searching for.
+	 * @return a flat list of all files matching that extension
+	 */
+	private ArrayList<File> getFilesOfExt(File[] files, String ext) {
         ArrayList<File> foundFiles = new ArrayList<>();
         for (File f : files) {
             String fn = f.getName();
@@ -415,54 +503,85 @@ public class GetLinks extends SwingWorker<Void, String> {
             if (f.isDirectory()) {
                 foundFiles.addAll(getFilesOfExt(f.listFiles(), ext));
             } else if (extension.equals(ext)) {
-                foundFiles.add(f);
-            }
-        }
-        return foundFiles;
-    }
+				foundFiles.add(f);
+			}
+		}
+		return foundFiles;
+	}
 
-    private ArrayList<CourseItem> getHTMLFiles(File[] files) throws Exception {
-        ArrayList<CourseItem> htmlFiles = new ArrayList<>();
-        for (File f : getFilesOfExt(files, ".htm")) {
-			//tickProgress();
+	/**
+	 * Get a flat list of all HTML files from an array of files at the root of an unzipped course export.
+	 *
+	 * @param files Array listing all files at the root of the course export.
+	 * @return a list of all files ending in .html or .htm in the course export
+	 * @throws IOException
+	 * @throws SAXException
+	 */
+	private ArrayList<CourseItem> getHTMLFiles(File[] files) throws IOException, SAXException {
+		ArrayList<CourseItem> htmlFiles = new ArrayList<>();
+
+		for (File f : getFilesOfExt(files, ".htm")) {
 			htmlFiles.add(new CourseItem(f, this));
 		}
-        for (File f : getFilesOfExt(files, ".html")) {
-			//tickProgress();
+
+		for (File f : getFilesOfExt(files, ".html")) {
 			htmlFiles.add(new CourseItem(f, this));
 		}
-        return htmlFiles;
-    }
 
-    public ArrayList<File> getXMLFiles() {
-        return xmlFiles;
-    }
+		return htmlFiles;
+	}
 
-    @Override
+	/**
+	 * Gets XML files in the course export.
+	 *
+	 * @return a list of all of the XML files in the export
+	 */
+	public ArrayList<File> getXMLFiles() {
+		return xmlFiles;
+	}
+
+	/**
+	 * Processes messages and passes them up to the parent GUI for printing.
+	 * @param chunks List of messages to print.
+	 */
+	@Override
     protected void process(List<String> chunks) {
-        for (String s : chunks) {
-            parent.textArea.append(s + "\n");
-        }
-    }
+		for (String s : chunks) {
+			parent.println(s);
+		}
+	}
 
-    private void sanitizeXIDFilenames(File dir) {
+	/**
+	 * Remove xid strings from all content collection filenames. Makes getting the xid a little trickier,
+	 * but simplifies seraching filesnames. Recursive, so may StackOverflow if used on an incredibly deep hierarchy.
+	 * @param dir The directory to sanitize, usually the content collection root in the export.
+	 */
+	private void sanitizeXIDFilenames(File dir) {
         if (dir != null) {
             File[] files = dir.listFiles();
-            if (files != null && files.length > 0) {
-                for (File f : files) {
-                    String newPath = f.getAbsolutePath().replace(f.getName(), "")
-                            + xidPattern.matcher(f.getName()).replaceAll("");
+			if (files != null && files.length > 0) {
+				for (File f : files) {
+
+					String newFilename = xidPattern.matcher(f.getName()).replaceAll("");
+					String newPath = f.getAbsolutePath().replace(f.getName(), "") + newFilename;
+
                     File f2 = new File(newPath);
                     f.renameTo(f2);
-                    if (f2.isDirectory()) {
-                        sanitizeXIDFilenames(f2);
-                    }
-                }
-            }
-        }
-    }
 
-    private void deleteDirectory(File dir) {
+                    if (f2.isDirectory()) {
+						sanitizeXIDFilenames(f2);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Delete directory and all contained files and subdirectories (recursive, will StackOverflow on <b>very</b> deep
+	 * trees.
+	 * @param dir Directory to delete.
+	 */
+	private void deleteDirectory(File dir) {
         File[] files = dir.listFiles();
         if (files != null) {
             for (File f : files) {

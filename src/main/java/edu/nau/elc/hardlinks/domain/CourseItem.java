@@ -1,5 +1,7 @@
-package edu.nau.elc.restructurelinks;
+package edu.nau.elc.hardlinks.domain;
 
+import edu.nau.elc.hardlinks.xml.DatHandler;
+import edu.nau.elc.hardlinks.xml.HardlinkHandler;
 import org.apache.commons.io.FilenameUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -7,63 +9,116 @@ import org.jsoup.nodes.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
+import javax.xml.parsers.*;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Represents a single item in the course (Item, Assignment, Test, Blank Page, etc.), and contains
+ * all Links that come from that item.
+ */
 public class CourseItem implements Comparable<CourseItem> {
+	private static DocumentBuilder documentBuilder;
+	private static SAXParserFactory factory = SAXParserFactory.newInstance();
+	private static SAXParser saxParser;
+
 	private final ArrayList<Link> discardedURLs = new ArrayList<>();
 	private final String extension;
 	private final ArrayList<Link> foundLinks = new ArrayList<>();
 	private final ArrayList<Link> xidLinks = new ArrayList<>();
-	private final GetLinks parent;
+	private final CourseProcessor parent;
 	private String collectionPath = "";
 	private String contentPath = "";
 	private File datFile;
 	private String name;
 
-	public CourseItem(File in, GetLinks parent) throws Exception {
+	/**
+	 * Instantiates a new Course item.
+	 *
+	 * @param in the XML or HTML file that the instance represents
+	 * @param parent the parent GetLinks instance (multiple may be running if multiple files selected)
+	 * @throws IOException
+	 * @throws SAXException
+	 */
+	public CourseItem(File in, CourseProcessor parent) throws IOException, SAXException {
+		if (saxParser == null) {
+			try {
+				saxParser = factory.newSAXParser();
+			} catch (ParserConfigurationException pce) {
+				throw new SAXException(pce);
+			}
+		}
+
+		if (documentBuilder == null) {
+			try {
+				documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+			} catch (ParserConfigurationException pce) {
+				throw new SAXException(pce);
+			}
+		}
+
 		this.parent = parent;
 		extension = FilenameUtils.getExtension(in.getName());
 
+		// there are two types of course items we deal with, either XML (.dat) or HTML (.htm/.html)
+		// the files need to be parsed separately before their text content is passed to the same link parsing logic
 		if (extension.equals("dat")) {
 			datFile = in;
-			foundLinks.addAll(getXMLHardLinks(in));
+			findXMLHardLinks(in);
+
 		} else if (extension.equals("htm") || extension.equals("html")) {
-			setDatFile(in);
-			foundLinks.addAll(getHTMLFileLinks(in));
+			findAndSetDatFile(in); // find the dat file that corresponds to this content collection item
+
+			findHTMLHardLinks(in);
+
 			collectionPath = in.getAbsolutePath().replace(
 					parent.getCCDir().getAbsolutePath(), "");
 		}
 
-		setContentPath();
+		findAndSetContentPath();
 	}
 
 	public int compareTo(CourseItem other) {
 		return other.foundLinks.size() - foundLinks.size();
 	}
 
+	/**
+	 * Gets the item's content collection path.
+	 *
+	 * @return the content collection path
+	 */
 	public String getCollectionPath() {
 		return collectionPath;
 	}
 
+	/**
+	 * Gets content path within course structure.
+	 *
+	 * @return the content path (starting from left-hand navigation menu)
+	 */
 	public String getContentPath() {
 		return contentPath;
 	}
 
+	/**
+	 * Gets the corresponding XML file.
+	 *
+	 * @return the corresponding XML file
+	 */
 	public File getDatFile() {
 		return datFile;
 	}
 
-	private void setDatFile(File in) throws Exception {
+	private void findAndSetDatFile(File in) throws IOException, SAXException {
+		// brute force our way through all of the course's XML files
+		// this would be really slow using DOM, so we'll use the clunky SAX parser
 		for (File f : parent.getDatFiles()) {
 			DatHandler handler = new DatHandler();
-			SAXParserFactory factory = SAXParserFactory.newInstance();
-			SAXParser saxParser = factory.newSAXParser();
+
 			InputStream inputStream = new FileInputStream(f);
 			Reader reader = new InputStreamReader(inputStream, "UTF-8");
 
@@ -74,62 +129,90 @@ public class CourseItem implements Comparable<CourseItem> {
 
 			if (in.getName().equals(handler.getLinkName())) {
 				datFile = f;
+				break; // forgot this before, nice speed-up from busting out of the loop when we have what we want
 			}
 		}
 	}
 
+	/**
+	 * Gets a list of Links that are probably not a problem.
+	 *
+	 * @return the discarded URLs (probably not bad links)
+	 */
 	public ArrayList<Link> getDiscardedURLs() {
 		return discardedURLs;
 	}
 
-	public ArrayList<Link> getFoundLinks() {
+	/**
+	 * Gets found (probably bad) links.
+	 *
+	 * @return the found links
+	 */
+	public ArrayList<Link> getHardLinks() {
 		return foundLinks;
 	}
 
+	/**
+	 * Gets XID (probably good) links.
+	 *
+	 * @return the XID links
+	 */
 	public ArrayList<Link> getXIDLinks() {
 		return xidLinks;
 	}
 
-	private ArrayList<Link> getHardLinks(String htmlContent) throws Exception {
+	private void findHardLinks(String htmlContent) throws IOException, SAXException {
+		// this is the main event, check some HTML for bad links
 		Document doc = Jsoup.parse(htmlContent);
-		TreeMap<String, String> hardlinks = new TreeMap<>();
+		TreeMap<String, String> links = new TreeMap<>();
 
+		// get all of the a tags and img tags from the html
+		// add them to a sorted map
 		for (Element e : doc.select("a")) {
-			hardlinks.put("text: " + e.text(), e.attr("href"));
+			links.put("text: " + e.text(), e.attr("href"));
 		}
 
 		for (Element e : doc.select("img")) {
-			hardlinks.put("alt: " + e.attr("alt"), e.attr("src"));
+			links.put("alt: " + e.attr("alt"), e.attr("src"));
 		}
 
-		ArrayList<Link> hardlinksNoDupes = new ArrayList<>();
-		for (Map.Entry<String, String> link : hardlinks.entrySet()) {
+
+		for (Map.Entry<String, String> link : links.entrySet()) {
 			String url = link.getValue().trim();
+			String urlText = link.getKey().trim();
 			if (url.length() == 0) {
 				continue;
 			}
-			String urlText = link.getKey();
+
+			// this custom JSP parameter just stands for our URL
+			// this can be changed to any base URL, and should probably be made configurable if we ever change URL
 			url = url.replace("@X@EmbeddedFile.requestUrlStub@X@", "https://bblearn.nau.edu/").toLowerCase();
 
 			if (url.startsWith("%20")) url = url.replaceFirst("%20", "");
 			url = url.replace("%0d", "");
 
+			// OWA redirect links are bad since students can't log in to OWA
 			if (url.contains("iris.nau.edu/owa/redir.aspx")) {
-				hardlinksNoDupes.add(new Link(url, urlText, this, false));
+				foundLinks.add(new Link(url, urlText, this, false));
 
 			} else if ((url.contains("ppg/") && contentPath.equals("Tests, Surveys & Pools")) ||
 					url.equalsIgnoreCase("about:blank") ||
 					url.contains("@X@EmbeddedFile.location@X@")) {
+				// if it's a pearson test image, or it's an embedded image, or it's javascript (blech), then we can ignore it
+
 				this.discardedURLs.add(new Link(url, urlText, this, false));
 
 			} else if (url.contains("xid") && url.contains("bbcswebdav")) {
+				// if it points to WebDAV and has xid in it, we can assume it's using the CMS properly (most of the time)
 				this.xidLinks.add(new Link(url, urlText, this, true));
 
 			} else if ((url.startsWith("http://") || url.startsWith("https://") || url.startsWith("www"))
 					&& !url.contains("bblearn") && !url.contains("vista")) {
+				// if it doesn't match these criteria, we can be pretty sure it points outside of bblearn
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 
 			} else if (url.contains("/images/ci/")) {
+				// these are images embedded by the TinyMCE/VTBE content editor
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 
 			} else if (
@@ -143,7 +226,12 @@ public class CourseItem implements Comparable<CourseItem> {
 							&& !url.contains("webapps/portal")
 							&& !url.contains("bbgs-nbc-content-integration-bblearn")
 							&& !url.contains("bb-selfpear-bblearn")) {
-				hardlinksNoDupes.add(new Link(url, urlText, this, false));
+
+				// if it definitely points to bb learn (wasn't filtered out above
+				// and it doesn't also point to a bunch of areas that have their links managed by B2s or content items
+				// then it's probably a copypasta link done by the instructor. BAD!
+
+				foundLinks.add(new Link(url, urlText, this, false));
 
 
 			} else if (!url.startsWith("https://") && !url.startsWith("http://")
@@ -156,17 +244,28 @@ public class CourseItem implements Comparable<CourseItem> {
 					&& !url.contains(".edu")
 					&& !url.contains(".org")
 					&& !url.contains("//cdn.slidesharecdn.com/")) {
-				hardlinksNoDupes.add(new Link(url, urlText, this, false));
+
+				// if it doesn't point outside of bblearn, and it doesn't explicitly point to bb learn,
+				// then it's a relative link (shame on you, instructor!), so we'll flag it as it will cause
+				// permissions issues
+
+				foundLinks.add(new Link(url, urlText, this, false));
 
 
 			} else {
+				// this catch all doesn't seem to be used often, but we want to make sure we are capturing all
+				// found links just in case the detection logic has a hole in it that's not yet discovered
+
 				this.discardedURLs.add(new Link(url, urlText, this, true));
 			}
 		}
-		return hardlinksNoDupes;
+
 	}
 
-	private ArrayList<Link> getHTMLFileLinks(File html) throws Exception {
+	private void findHTMLHardLinks(File html) throws SAXException, IOException {
+		// we want to capture a little bit of metadata about the html file
+		// then read it into memory and have JSoup parse it
+
 		name = html.getName();
 		int xidIndex = name.lastIndexOf("__xid");
 		if (xidIndex > -1) {
@@ -183,13 +282,23 @@ public class CourseItem implements Comparable<CourseItem> {
 		}
 
 		rdr.close();
-		return getHardLinks(text);
+		findHardLinks(text);
 	}
 
-	public GetLinks getInstance() {
+	/**
+	 * Gets the course processor this item belongs to.
+	 *
+	 * @return the course processor that contains this item
+	 */
+	public CourseProcessor getCourse() {
 		return parent;
 	}
 
+	/**
+	 * Gets the name/title of the item.
+	 *
+	 * @return the name/title
+	 */
 	public String getName() {
 		return name;
 	}
@@ -216,10 +325,11 @@ public class CourseItem implements Comparable<CourseItem> {
 		return build.toString();
 	}
 
-	private ArrayList<Link> getXMLHardLinks(File dat) throws Exception {
+	private void findXMLHardLinks(File dat) throws IOException, SAXException {
+		// here we need to parse the content item's XML file before
+		// we check the text for links
+
 		HardlinkHandler handler = new HardlinkHandler();
-		SAXParserFactory factory = SAXParserFactory.newInstance();
-		SAXParser saxParser = factory.newSAXParser();
 		InputStream inputStream = new FileInputStream(dat);
 		Reader reader = new InputStreamReader(inputStream, "UTF-8");
 
@@ -233,33 +343,33 @@ public class CourseItem implements Comparable<CourseItem> {
 		if (contentPath.equalsIgnoreCase("Tests, Surveys & Pools")) {
 			name = handler.getAssessType() + ": " + name;
 		}
-		return getHardLinks(handler.getText());
+		findHardLinks(handler.getText());
 	}
 
-	private void setContentPath() {
+	private void findAndSetContentPath() {
 		if (!contentPath.equals("")) {
 			return;
 		}
 		if (datFile == null) {
-			contentPath = "NOT DEPLOYED???";
+			contentPath = "NOT DEPLOYED?";
 			return;
 		}
 		String datString = datFile.getName();
 		datString = datString.substring(0, datString.lastIndexOf('.'));
 
 		NodeList nl = parent.getDOM();
-		org.w3c.dom.Element thisNode;
 
 		for (int i = 0; i < nl.getLength(); i++) {
 			Node curr = nl.item(i);
 			if (curr instanceof org.w3c.dom.Element) {
 				org.w3c.dom.Element e = (org.w3c.dom.Element) curr;
+
 				String datRef = e.getAttribute("identifierref");
+
 				if (datRef.equalsIgnoreCase(datString)) {
-					thisNode = e;
-					contentPath = getPathToNode(thisNode);
+					contentPath = getPathToNode(e);
 					if (extension.equals("htm") || extension.equals("html")) {
-						name = getNodeTitle(thisNode);
+						name = getNodeTitle(e);
 					}
 					break;
 				}

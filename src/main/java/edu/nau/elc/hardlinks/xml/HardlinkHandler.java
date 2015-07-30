@@ -1,9 +1,12 @@
-package edu.nau.elc.restructurelinks;
+package edu.nau.elc.hardlinks.xml;
 
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+/**
+ * This parses XML files that hold course content items to extract their HTML/text contents.
+ */
 public class HardlinkHandler extends DefaultHandler {
 
     private boolean isAssessment = false;
@@ -16,6 +19,7 @@ public class HardlinkHandler extends DefaultHandler {
     private String title = "";
     private String assessType = "";
 
+	@Override
     public void characters(char ch[], int start, int length)
             throws SAXException {
         if (istext) {
@@ -26,9 +30,11 @@ public class HardlinkHandler extends DefaultHandler {
         }
     }
 
+	@Override
     public void endDocument() {
     }
 
+	@Override
     public void endElement(String uri, String localName, String qName)
             throws SAXException {
         if (istitle) {
@@ -42,20 +48,41 @@ public class HardlinkHandler extends DefaultHandler {
         }
     }
 
-    public String getAssessType() {
+	/**
+	 * Gets assessment type (if a test, survey, or pool).
+	 *
+	 * @return the assessment type
+	 */
+	public String getAssessType() {
         return this.assessType;
     }
 
-    public String getText() {
+	/**
+	 * Gets the text content of the content item (usually HTML).
+	 *
+	 * @return the text of the course content item.
+	 */
+	public String getText() {
 		if (isDiscussion || isAnnouncement) return "";
 		return this.text;
     }
 
-    public String getTitle() {
+	/**
+	 * Get's the content item's title.
+	 *
+	 * @return the content item's title.
+	 */
+	public String getTitle() {
         return this.title;
     }
 
-    public String getType() {
+	/**
+	 * Gets the type of the course content item. There are many types of content items, but this currently only
+	 * implements Announcements, Discussion Forums, and Tests.
+	 *
+	 * @return the content item's type.
+	 */
+	public String getType() {
         if (isAnnouncement) {
             return "Announcements";
         }
@@ -68,6 +95,7 @@ public class HardlinkHandler extends DefaultHandler {
         return "";
     }
 
+	@Override
     public void startElement(String uri, String localName, String qName,
                              Attributes attributes) throws SAXException {
         if (qName.equalsIgnoreCase("ANNOUNCEMENT")) {
