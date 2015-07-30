@@ -108,12 +108,12 @@
 <h5>
 <a id="user-content-report-output" class="anchor" href="#report-output" aria-hidden="true"><span class="octicon octicon-link"></span></a>Report Output</h5>
 
-<p>The format of the report is fairly tightly coupled to the implementation code, but it can definitely be tweaked. The beastly method <code>GetLinks.writeResults</code> handles the actual writing to the Excel sheet, which just treats each page as an endless 2D array where each new row or cell needs to be created before it can be written to.</p>
+<p>The format of the report is fairly tightly coupled to the implementation code, but it can definitely be tweaked. The beastly method <code>CourseProcessor.writeResults</code> handles the actual writing to the Excel sheet, which just treats each page as an endless 2D array where each new row or cell needs to be created before it can be written to.</p>
 
 <h5>
 <a id="user-content-gui" class="anchor" href="#gui" aria-hidden="true"><span class="octicon octicon-link"></span></a>GUI</h5>
 
-<p>Hopefully the GUI shouldn't need to change drastically, but if it does it's all handled in <code>GetLinksWindow</code>, which creates instances of <code>GetLinks</code> objects, 1 for each course export.</p>
+<p>Hopefully the GUI shouldn't need to change drastically, but if it does it's all handled in <code>GetLinksWindow</code>, which creates instances of <code>CourseProcessor</code> objects, 1 for each course export.</p>
 
 <h3>
 <a id="user-content-updating-documentation" class="anchor" href="#updating-documentation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Updating Documentation</h3>

@@ -41,11 +41,11 @@ The XML parsing is done (quite painfully) with the Java SAX streaming XML parsin
 
 #####Report Output
 
-The format of the report is fairly tightly coupled to the implementation code, but it can definitely be tweaked. The beastly method `GetLinks.writeResults` handles the actual writing to the Excel sheet, which just treats each page as an endless 2D array where each new row or cell needs to be created before it can be written to.
+The format of the report is fairly tightly coupled to the implementation code, but it can definitely be tweaked. The beastly method `CourseProcessor.writeResults` handles the actual writing to the Excel sheet, which just treats each page as an endless 2D array where each new row or cell needs to be created before it can be written to.
 
 #####GUI
 
-Hopefully the GUI shouldn't need to change drastically, but if it does it's all handled in `GetLinksWindow`, which creates instances of `GetLinks` objects, 1 for each course export.
+Hopefully the GUI shouldn't need to change drastically, but if it does it's all handled in `GetLinksWindow`, which creates instances of `CourseProcessor` objects, 1 for each course export.
 
 ###Updating Documentation
 
